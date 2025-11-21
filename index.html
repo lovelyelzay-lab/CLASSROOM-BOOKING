@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Classroom Booking - TUTORS</title>
+  <title>Classroom Booking - Prototype</title>
   <style>
     :root{--bg:#f5f7fb;--card:#ffffff;--muted:#6b7280;--accent:#3b82f6}
     body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); margin:0; color:#111}
@@ -115,7 +115,9 @@
 
           <hr style="margin:12px 0;border:none;border-top:1px solid #f1f4f8" />
 
-          <div id="scheduleArea"></div>
+          <div id="scheduleArea">
+            <!-- bookings rendered here -->
+          </div>
 
           <div style="margin-top:12px" class="small muted">Booking history (your browser)</div>
           <div id="history" class="history"></div>
@@ -132,12 +134,14 @@
   </div>
 
   <script>
+    // --- Simple localStorage-backed booking prototype
     const LS_KEYS = {ROOMS:'booking_rooms_v1',BOOKS:'booking_items_v1'}
 
+    // initialise default rooms if none
     function loadRooms(){
       const raw = localStorage.getItem(LS_KEYS.ROOMS)
       if(!raw){
-        const defaults = ['CR 9','CR 10','CR 11']
+        const defaults = ['CR 12','CR 19','CR 21']
         localStorage.setItem(LS_KEYS.ROOMS, JSON.stringify(defaults))
         return defaults
       }
@@ -152,14 +156,20 @@
     }
     function saveBookings(arr){localStorage.setItem(LS_KEYS.BOOKS, JSON.stringify(arr))}
 
-    function dateKey(d){
+    // helpers
+    function formatTime(t){ // HH:MM
+      return t
+    }
+    function dateKey(d){ // yyyy-mm-dd
       return d.toISOString().slice(0,10)
     }
 
+    // overlap check: same room, same date
     function overlaps(aStart,aEnd,bStart,bEnd){
       return !(aEnd <= bStart || aStart >= bEnd)
     }
 
+    // UI wiring
     const dateInput = document.getElementById('dateInput')
     const roomSelect = document.getElementById('roomSelect')
     const roomList = document.getElementById('roomList')
@@ -196,6 +206,7 @@
       const key = dateKey(date)
       const todays = bookings.filter(b=>b.date===key).sort((a,b)=>a.start.localeCompare(b.start))
       scheduleArea.innerHTML = ''
+      if(rooms.length===0){ scheduleArea.innerHTML='<div class="small muted">No rooms yet. Add one on the left.</div>'; return }
 
       rooms.forEach(room=>{
         const roomHead = document.createElement('div'); roomHead.style.marginTop='8px'
@@ -224,6 +235,7 @@
         scheduleArea.appendChild(roomHead)
       })
 
+      // build an example print summary for that day
       const grouped = {}
       todays.forEach(b=>{ grouped[b.name] = grouped[b.name] || []; grouped[b.name].push(`${b.room} (${b.start}-${b.end})`) })
       let example = ''
@@ -248,16 +260,19 @@
 
     function isoToday(){ const d = new Date(); return d.toISOString().slice(0,10) }
 
+    // event handlers
     bookBtn.onclick = ()=>{
       msg.textContent=''
       const name = nameInput.value.trim(); const room = roomSelect.value; const start = startInput.value; const end = endInput.value; const purpose = purposeInput.value.trim(); const date = dateInput.value
       if(!name || !room || !start || !end || !date){ msg.textContent='Please fill name, room, date and times'; return }
       if(end <= start){ msg.textContent='End time must be after start time'; return }
 
+      // check overlap
       const key = date
       const sameDay = bookings.filter(b=>b.date===key && b.room===room)
       for(const b of sameDay){ if(overlaps(start,end,b.start,b.end)){ msg.textContent=`Conflict with ${b.name} (${b.start}-${b.end}) in ${room}`; return } }
 
+      // create booking
       const id = 'BK' + Math.random().toString(36).slice(2,8).toUpperCase()
       bookings.push({id,name,room,start,end,date,purpose,created: new Date().toISOString()})
       saveBookings(bookings)
@@ -277,19 +292,24 @@
     nextDay.onclick = ()=>{ shiftDay(1) }
     function shiftDay(n){ const d = new Date(dateInput.value); d.setDate(d.getDate()+n); dateInput.value = d.toISOString().slice(0,10); renderSchedule() }
 
+    // load initial
     function init(){
       rooms = loadRooms(); bookings = loadBookings(); populateRooms();
       if(!dateInput.value) dateInput.value = isoToday();
+      // default times good for typical classes
       startInput.value = '09:00'; endInput.value = '11:00'
       renderSchedule(); renderHistory();
+      // when date changes
       dateInput.addEventListener('change', ()=>{ renderSchedule(); })
     }
 
     init()
 
+    // small accessibility: allow double-click on room pill to pre-fill room select
     roomList.addEventListener('dblclick', (e)=>{
       if(e.target.classList.contains('room-pill')){ roomSelect.value = e.target.textContent }
     })
+
   </script>
 </body>
 </html>
